@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, Search } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 
-// Sample initial data (can be fetched from an API later)
-const initialContacts: Contact[] = [
+const LOCAL_STORAGE_KEY = 'contactManagerContacts';
+
+// Fallback initial data, used only if local storage is empty or fails to parse
+const fallbackInitialContacts: Contact[] = [
   {
     id: '1',
     name: 'Jane Doe',
@@ -36,19 +38,40 @@ const initialContacts: Contact[] = [
 
 const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>(() => {
+    try {
+      const storedContacts = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (storedContacts) {
+        const parsedContacts = JSON.parse(storedContacts);
+        // Ensure parsedContacts is an array, otherwise fallback
+        return Array.isArray(parsedContacts) ? parsedContacts : fallbackInitialContacts;
+      }
+    } catch (error) {
+      console.error("Error reading contacts from local storage:", error);
+    }
+    return fallbackInitialContacts;
+  });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    // Simulate loading
+    // Simulate initial loading delay
     const timer = setTimeout(() => {
-      setContacts(initialContacts); // Load initial contacts
       setIsLoading(false);
-    }, 1500); // Adjust loading time as needed
+    }, 1000); // Reduced loading time for quicker feedback
     return () => clearTimeout(timer);
   }, []);
+
+  // Save contacts to local storage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(contacts));
+      console.log("Contacts saved to local storage:", contacts);
+    } catch (error) {
+      console.error("Error saving contacts to local storage:", error);
+    }
+  }, [contacts]);
 
   const handleAddContact = () => {
     setEditingContact(null);
@@ -68,11 +91,11 @@ const Index = () => {
   const handleFormSubmit = (contactData: Omit<Contact, 'id'> | Contact) => {
     if ('id' in contactData && contactData.id) { // Editing existing contact
       setContacts(prevContacts => 
-        prevContacts.map(c => c.id === contactData.id ? { ...c, ...contactData } : c)
+        prevContacts.map(c => c.id === contactData.id ? { ...c, ...contactData } as Contact : c)
       );
     } else { // Adding new contact
       const newContact: Contact = {
-        ...contactData,
+        ...(contactData as Omit<Contact, 'id'>), // Cast to ensure all properties are there
         id: new Date().toISOString(), // Simple unique ID
       };
       setContacts(prevContacts => [newContact, ...prevContacts]);
@@ -83,8 +106,8 @@ const Index = () => {
   const filteredContacts = contacts.filter(contact =>
     contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     contact.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contact.jobTitle.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    (contact.jobTitle && contact.jobTitle.toLowerCase().includes(searchTerm.toLowerCase()))
+  ).sort((a, b) => new Date(b.id).getTime() - new Date(a.id).getTime()); // Sort by newest first based on ID timestamp
 
   if (isLoading) {
     return <Preloader />;
@@ -132,9 +155,9 @@ const Index = () => {
         ) : (
           <div className="text-center py-12">
             <p className="text-xl text-muted-foreground">
-              {searchTerm ? "No contacts match your search." : "No contacts yet. Add one to get started!"}
+              {searchTerm ? "No contacts match your search." : (contacts.length > 0 ? "No contacts match your search." : "No contacts yet. Add one to get started!")}
             </p>
-            {!searchTerm && (
+            {!searchTerm && contacts.length === 0 && (
                 <Button onClick={handleAddContact} className="btn-primary mt-4">
                 <PlusCircle size={20} className="mr-2" />
                 Add Your First Contact

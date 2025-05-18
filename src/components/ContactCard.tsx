@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Contact } from '@/types';
 import { Briefcase, Building, Phone, Smartphone, Mail, Linkedin, Twitter, Github, Edit, Trash2 } from 'lucide-react';
@@ -11,16 +12,20 @@ interface ContactCardProps {
 
 const ContactCard: React.FC<ContactCardProps> = ({ contact, onEdit, onDelete }) => {
   const getInitials = (name: string) => {
-    const names = name.split(' ');
+    const names = name.trim().split(' ');
+    if (!names[0] || names[0] === '') return '';
     if (names.length === 1) return names[0][0]?.toUpperCase() || '';
     return (names[0][0] + (names[names.length - 1][0] || '')).toUpperCase();
   };
   
+  // Use a specific placeholder or the Vercel avatar if contact.avatarUrl is empty or undefined
+  const avatarSrc = contact.avatarUrl || `https://avatar.vercel.sh/${contact.email || contact.name}.png`;
+
   return (
     <div className="bg-card text-card-foreground rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow duration-300 ease-out animate-scale-in flex flex-col">
       <div className="flex items-center mb-4">
         <Avatar className="h-20 w-20 mr-4 border-2 border-primary">
-          <AvatarImage src={contact.avatarUrl || `https://avatar.vercel.sh/${contact.email}.png`} alt={contact.name} />
+          <AvatarImage src={avatarSrc} alt={contact.name} />
           <AvatarFallback className="text-2xl bg-primary text-primary-foreground font-semibold">
             {getInitials(contact.name)}
           </AvatarFallback>
