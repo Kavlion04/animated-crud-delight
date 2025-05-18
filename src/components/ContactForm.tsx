@@ -1,10 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Contact } from '@/types';
-import { Button } from "@/components/ui/button"; // Using shadcn button
-import { Input } from "@/components/ui/input"; // Using shadcn input
-import { Label } from "@/components/ui/label"; // Using shadcn label
-import { X, User, Briefcase, Building, Phone, Smartphone, Mail, Link as LinkIcon, Save } from 'lucide-react'; // Renamed Link to LinkIcon to avoid conflict
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"; // Added Avatar imports
+import { X, User, Briefcase, Building, Phone, Smartphone, Mail, Link as LinkIcon, Save, ImageUp } from 'lucide-react';
 
 interface ContactFormProps {
   isOpen: boolean;
@@ -27,6 +28,33 @@ const ContactForm: React.FC<ContactFormProps> = ({ isOpen, onClose, onSubmit, in
     github: '',
   });
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [currentObjectURL, setCurrentObjectURL] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Cleanup previous ObjectURL when formData.avatarUrl changes or component unmounts
+    if (currentObjectURL) {
+      URL.revokeObjectURL(currentObjectURL);
+      console.log("Revoked previous ObjectURL:", currentObjectURL);
+      setCurrentObjectURL(null);
+    }
+
+    if (formData.avatarUrl && formData.avatarUrl.startsWith('blob:')) {
+      setCurrentObjectURL(formData.avatarUrl);
+    }
+  }, [formData.avatarUrl]);
+
+  // Component unmount cleanup
+  useEffect(() => {
+    return () => {
+      if (currentObjectURL) {
+        URL.revokeObjectURL(currentObjectURL);
+        console.log("Revoked ObjectURL on unmount:", currentObjectURL);
+      }
+    };
+  }, [currentObjectURL]);
+
+
   useEffect(() => {
     if (initialData) {
       setFormData(initialData);
@@ -37,6 +65,8 @@ const ContactForm: React.FC<ContactFormProps> = ({ isOpen, onClose, onSubmit, in
         linkedin: '', twitter: '', github: '',
       });
     }
+    // When the form is opened/closed or initialData changes, revoke any existing object URL from previous state
+    // This is now handled by the two useEffects above more robustly
   }, [initialData, isOpen]);
 
   if (!isOpen) return null;
@@ -46,12 +76,34 @@ const ContactForm: React.FC<ContactFormProps> = ({ isOpen, onClose, onSubmit, in
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const newObjectUrl = URL.createObjectURL(file);
+      setFormData(prev => ({ ...prev, avatarUrl: newObjectUrl }));
+      // The useEffect for formData.avatarUrl will handle revoking the *previous* currentObjectURL
+      // and setting the new one.
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // IMPORTANT: If formData.avatarUrl is a blob URL, it won't be persisted.
+    // This needs Supabase or similar for actual upload and getting a permanent URL.
+    if (formData.avatarUrl && formData.avatarUrl.startsWith('blob:')) {
+      console.warn("Submitting form with temporary blob URL for avatar. This will not be saved permanently without backend storage.");
+    }
     onSubmit(formData);
     onClose(); // Close form after submission
   };
   
+  const getInitials = (name: string) => {
+    const names = name.trim().split(' ');
+    if (!names[0]) return ''; // Handle empty name
+    if (names.length === 1) return names[0][0]?.toUpperCase() || '';
+    return (names[0][0] + (names[names.length - 1][0] || '')).toUpperCase();
+  };
+
   const formFields = [
     { name: "name", label: "Full Name", type: "text", icon: User, required: true },
     { name: "email", label: "Email", type: "email", icon: Mail, required: true },
@@ -59,7 +111,7 @@ const ContactForm: React.FC<ContactFormProps> = ({ isOpen, onClose, onSubmit, in
     { name: "department", label: "Department", type: "text", icon: Building, required: true },
     { name: "mobile", label: "Mobile Phone", type: "tel", icon: Smartphone },
     { name: "officePhone", label: "Office Phone", type: "tel", icon: Phone },
-    { name: "avatarUrl", label: "Avatar URL (placeholder)", type: "text", icon: LinkIcon },
+    // avatarUrl is handled separately now
     { name: "linkedin", label: "LinkedIn URL", type: "url", icon: LinkIcon },
     { name: "twitter", label: "Twitter URL", type: "url", icon: LinkIcon },
     { name: "github", label: "GitHub URL", type: "url", icon: LinkIcon },
@@ -76,6 +128,45 @@ const ContactForm: React.FC<ContactFormProps> = ({ isOpen, onClose, onSubmit, in
         </div>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Avatar Upload Section */}
+            <div className="md:col-span-2 flex flex-col items-center space-y-2">
+              <Label htmlFor="avatar-upload" className="text-sm font-medium flex items-center self-start">
+                <User size={14} className="mr-2 text-primary/80" />
+                Avatar
+              </Label>
+              <div
+                className="relative group cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
+                aria-label="Upload avatar image"
+              >
+                <Avatar className="h-32 w-32 border-2 border-dashed border-primary/50 group-hover:border-primary transition-colors">
+                  <AvatarImage src={formData.avatarUrl || undefined} alt={formData.name} />
+                  <AvatarFallback className="text-3xl bg-primary/10 text-primary/80">
+                    {formData.avatarUrl ? getInitials(formData.name) : <ImageUp size={48} />}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                  <ImageUp size={32} className="text-white" />
+                </div>
+              </div>
+              <input
+                id="avatar-upload"
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="hidden"
+              />
+               {formData.avatarUrl && formData.avatarUrl.startsWith('blob:') && (
+                <Button type="button" variant="link" size="sm" className="text-xs" onClick={() => setFormData(prev => ({...prev, avatarUrl: initialData?.avatarUrl || ''}))}>
+                  Clear selected image
+                </Button>
+              )}
+            </div>
+
             {formFields.map(field => (
               <div key={field.name} className="space-y-1">
                 <Label htmlFor={field.name} className="text-sm font-medium flex items-center">
@@ -111,3 +202,4 @@ const ContactForm: React.FC<ContactFormProps> = ({ isOpen, onClose, onSubmit, in
 };
 
 export default ContactForm;
+
