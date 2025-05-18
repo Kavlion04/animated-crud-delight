@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { Contact } from '@/types';
 import { Briefcase, Building, Phone, Smartphone, Mail, Linkedin, Twitter, Github, Edit, Trash2 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // Assuming shadcn avatar is available or we make a simple one
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface ContactCardProps {
   contact: Contact;
@@ -22,7 +21,7 @@ const ContactCard: React.FC<ContactCardProps> = ({ contact, onEdit, onDelete }) 
       <div className="flex items-center mb-4">
         <Avatar className="h-20 w-20 mr-4 border-2 border-primary">
           <AvatarImage src={contact.avatarUrl || `https://avatar.vercel.sh/${contact.email}.png`} alt={contact.name} />
-          <AvatarFallback className="text-2xl bg-primary/20 text-primary font-semibold">
+          <AvatarFallback className="text-2xl bg-primary text-primary-foreground font-semibold">
             {getInitials(contact.name)}
           </AvatarFallback>
         </Avatar>
